@@ -67,7 +67,8 @@ useEffect(() => {
 
 ### createChannel()
 
-Creates a new channel if a channel with the given channelId does not exist.
+Creates a new channel if a channel with the given channelId does not exist. Resolves to `true` when a new channel is created (o
+r Android < 8.0 where channel APIs are unavailable) and `false` when the channel already exists.
 Pass an object of following properties:
 
 | property  | description | example

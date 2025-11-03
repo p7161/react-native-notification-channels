@@ -30,10 +30,9 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
 
   @ReactMethod
   fun listChannels(promise: Promise) {
-//    val channels: MutableList<String> = ArrayList()
-    var channels = WritableNativeArray()
+    val channels = WritableNativeArray()
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      promise.resolve(null)
+      promise.resolve(channels)
       return
     }
     val listChannels: List<NotificationChannel> = notificationManager.notificationChannels
@@ -46,31 +45,46 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
   @ReactMethod
   fun channelBlocked(channel_id: String?, promise: Promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      promise.resolve(null)
+      promise.resolve(false)
       return
     }
-    val channel = notificationManager.getNotificationChannel(channel_id)
-    promise.resolve(NotificationManager.IMPORTANCE_NONE == channel.importance)
+    val id = channel_id?.trim()
+    if (id.isNullOrEmpty()) {
+      promise.resolve(false)
+      return
+    }
+    val channel = notificationManager.getNotificationChannel(id)
+    promise.resolve(channel != null && NotificationManager.IMPORTANCE_NONE == channel.importance)
   }
 
   @ReactMethod
   fun channelExists(channel_id: String?, promise: Promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      promise.resolve(null)
+      promise.resolve(false)
       return
     }
-    val channel = notificationManager.getNotificationChannel(channel_id)
+    val id = channel_id?.trim()
+    if (id.isNullOrEmpty()) {
+      promise.resolve(false)
+      return
+    }
+    val channel = notificationManager.getNotificationChannel(id)
     promise.resolve(channel != null)
   }
 
   @ReactMethod
-  fun deleteChannel(channel_id: String?,promise: Promise) {
+  fun deleteChannel(channel_id: String?, promise: Promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      promise.resolve(null)
+      promise.resolve(true)
       return
     }
-    notificationManager.deleteNotificationChannel(channel_id)
-    promise.resolve("Channel Deleted")
+    val id = channel_id?.trim()
+    if (id.isNullOrEmpty()) {
+      promise.resolve(false)
+      return
+    }
+    notificationManager.deleteNotificationChannel(id)
+    promise.resolve(true)
   }
 
   private fun toLongArray(array: ReadableArray?): LongArray? {
@@ -93,8 +107,8 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
   }
 
   private fun checkOrCreateChannel(
-    channel_id: String?,
-    channel_name: String?,
+    channel_id: String,
+    channel_name: String,
     channel_description: String?,
     importance: Int,
     groupId: String?,
@@ -105,29 +119,10 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       return false
     }
-    var channel = notificationManager.getNotificationChannel(channel_id)
-    if (channel == null && channel_name != null && channel_description != null ||
-      channel != null &&
-      (channel_name != null && channel_name != channel.name ||
-        channel_description != null && channel_description != channel.description)) {
-      // If channel doesn't exist create a new one.
-      // If channel name or description is updated then update the existing channel.
-      channel = NotificationChannel(channel_id, channel_name, importance)
+    val existing = notificationManager.getNotificationChannel(channel_id)
+    if (existing == null) {
+      val channel = NotificationChannel(channel_id, channel_name, importance)
       channel.description = channel_description
-      //            channel.enableLights(true);
-//            channel.enableVibration(vibratePattern != null);
-//            channel.setVibrationPattern(vibratePattern);
-
-//            if (soundUri != null) {
-//                AudioAttributes audioAttributes = new AudioAttributes.Builder()
-//                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-//                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
-//                .build();
-//
-//                channel.setSound(soundUri, audioAttributes);
-//            } else {
-//                channel.setSound(null, null);
-//            }
       if (groupId != null) {
         channel.group = groupId
       }
@@ -144,21 +139,52 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
       notificationManager.createNotificationChannel(channel)
       return true
     }
+
+    var touched = false
+    if (channel_description != null && existing.description != channel_description) {
+      existing.description = channel_description
+      touched = true
+    }
+    if (lockscreenVisibility != null && existing.lockscreenVisibility != lockscreenVisibility) {
+      existing.lockscreenVisibility = lockscreenVisibility
+      touched = true
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && bypassDnd != null) {
+      existing.setBypassDnd(bypassDnd)
+      touched = true
+    }
+    if (vibrationPattern != null) {
+      existing.enableVibration(true)
+      existing.vibrationPattern = vibrationPattern
+      touched = true
+    }
+    if (touched) {
+      notificationManager.createNotificationChannel(existing)
+    }
     return false
   }
 
   @ReactMethod
   fun createChannel(channelInfo: ReadableMap, promise: Promise) {
-    val channelId = channelInfo.getString("channelId")
-    val channelName = channelInfo.getString("channelName")
-    val channelDescription = if (channelInfo.hasKey("channelDescription")) channelInfo.getString("channelDescription") else ""
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+      promise.resolve(true)
+      return
+    }
+
+    val channelId = channelInfo.getString("channelId")?.trim()
+    if (channelId.isNullOrEmpty()) {
+      promise.reject("E_MISSING_ID", "channelId is required")
+      return
+    }
+    val channelName = channelInfo.getString("channelName") ?: channelId
+    val channelDescription = if (channelInfo.hasKey("channelDescription") && !channelInfo.isNull("channelDescription")) channelInfo.getString("channelDescription") else null
     //        boolean playSound = !channelInfo.hasKey("playSound") || channelInfo.getBoolean("playSound");
 //        String soundName = channelInfo.hasKey("soundName") ? channelInfo.getString("soundName") : "default";
-    val importance = if (channelInfo.hasKey("importance")) channelInfo.getInt("importance") else 4
+    val importance = if (channelInfo.hasKey("importance") && !channelInfo.isNull("importance")) channelInfo.getInt("importance") else 4
     //        boolean vibrate = channelInfo.hasKey("vibrate") && channelInfo.getBoolean("vibrate");
 //        long[] vibratePattern = vibrate ? new long[] { 0, DEFAULT_VIBRATION } : null;
 //        Uri soundUri = playSound ? getSoundUri(soundName) : null;
-    val groupId = if (channelInfo.hasKey("groupId")) channelInfo.getString("groupId") else null
+    val groupId = if (channelInfo.hasKey("groupId") && !channelInfo.isNull("groupId")) channelInfo.getString("groupId") else null
     val lockscreenVisibility = if (channelInfo.hasKey("lockscreenVisibility") && !channelInfo.isNull("lockscreenVisibility")) {
       channelInfo.getInt("lockscreenVisibility")
     } else {
@@ -174,24 +200,24 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
     } else {
       null
     }
-    promise.resolve(
-      checkOrCreateChannel(
-        channelId,
-        channelName,
-        channelDescription,
-        importance,
-        groupId,
-        lockscreenVisibility,
-        bypassDnd,
-        vibrationPattern
-      )
+    val created = checkOrCreateChannel(
+      channelId,
+      channelName,
+      channelDescription,
+      importance,
+      groupId,
+      lockscreenVisibility,
+      bypassDnd,
+      vibrationPattern
     )
+
+    promise.resolve(created)
   }
 
   @ReactMethod
   fun createChannelGroup(groupId: String?, groupName: String?, promise: Promise) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-      promise.resolve(null)
+      promise.resolve(true)
       return
     }
     notificationManager.createNotificationChannelGroup(NotificationChannelGroup(groupId, groupName))

@@ -34,14 +34,14 @@ export type CreateChannelOptions = {
 
 type NotificationChannelsType = {
   listChannels(): Promise<string[] | undefined>;
-  channelBlocked(channel_id: string): Promise<boolean | undefined>;
-  channelExists(channel_id: string): Promise<boolean | undefined>;
-  deleteChannel(channel_id: string): Promise<boolean | undefined>;
-  createChannel(channelInfo: CreateChannelOptions): Promise<boolean | undefined>;
+  channelBlocked(channel_id: string): Promise<boolean>;
+  channelExists(channel_id: string): Promise<boolean>;
+  deleteChannel(channel_id: string): Promise<boolean>;
+  createChannel(channelInfo: CreateChannelOptions): Promise<boolean>;
   createChannelGroup(
     groupId: string,
     groupName: string
-  ): Promise<boolean | undefined>;
+  ): Promise<boolean>;
 };
 
 const { NotificationChannels } = NativeModules;
@@ -51,11 +51,11 @@ let NotifChannels = NotificationChannels;
 if (Platform.OS === 'ios' || !NotificationChannels) {
   const iOSNotifChannels: NotificationChannelsType = {
     listChannels: async () => Promise.resolve(undefined),
-    channelBlocked: async () => Promise.resolve(undefined),
-    channelExists: async () => Promise.resolve(undefined),
-    deleteChannel: async () => Promise.resolve(undefined),
-    createChannel: async () => Promise.resolve(undefined),
-    createChannelGroup: async () => Promise.resolve(undefined),
+    channelBlocked: async () => Promise.resolve(false),
+    channelExists: async () => Promise.resolve(false),
+    deleteChannel: async () => Promise.resolve(true),
+    createChannel: async () => Promise.resolve(true),
+    createChannelGroup: async () => Promise.resolve(true),
   };
   NotifChannels = iOSNotifChannels;
 }
