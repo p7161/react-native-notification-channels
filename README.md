@@ -19,8 +19,9 @@ npm install react-native-notification-channels
 ## Usage
 
 ```js
-import NotificationChannels, { 
-  CHANNEL_IMPORTANCE 
+import NotificationChannels, {
+  CHANNEL_IMPORTANCE,
+  CHANNEL_VISIBILITY
 } from "react-native-notification-channels";
 
 // ...
@@ -46,6 +47,9 @@ async function configChannels() {
     channelName: 'Important Notifications',
     channelDescription: 'A notification channel which will receive all the important notifications from this app',
     importance: CHANNEL_IMPORTANCE.IMPORTANCE_HIGH,
+    lockscreenVisibility: CHANNEL_VISIBILITY.VISIBILITY_PUBLIC, // optional
+    bypassDnd: false, // optional, Android 10+
+    vibrationPattern: [0, 250, 150, 250], // optional, delay and on/off vibration timings in ms
     groupId: 'my_new_group' // optional
   })
   console.log(channelCreated ? "Channel created" : "Failed to create channel")
@@ -63,7 +67,8 @@ useEffect(() => {
 
 ### createChannel()
 
-Creates a new channel if a channel with the given channelId does not exist.
+Creates a new channel if a channel with the given channelId does not exist. Resolves to `true` when a new channel is created (o
+r Android < 8.0 where channel APIs are unavailable) and `false` when the channel already exists.
 Pass an object of following properties:
 
 | property  | description | example
@@ -72,7 +77,14 @@ Pass an object of following properties:
 | channelName  | a name to display in app notification settings  | 'Reminders' |
 | channelDescription  | a description to display in app notification settings  | 'This channel will receive blah blah blah...' |
 | importance  | to set importance level of channel notifications  | see below for details |
+| lockscreenVisibility | controls how notifications appear on the lock screen | `CHANNEL_VISIBILITY.VISIBILITY_PUBLIC` |
+| bypassDnd | allow notifications to bypass system "Do Not Disturb" (Android 10+) | `true` |
+| vibrationPattern | configure a custom vibration pattern (milliseconds) | `[0, 250, 150, 250]` |
 | groupId  | a unique id for a group (that was already created using createChannelGroup method), if you want to associate the group with the channel  | 'my_new_group' |
+
+> **Note:** Android treats notification channel properties as immutable after creation. To change lockscreen visibility, bypass DND, or vibration patterns later, delete the existing channel first and recreate it with the desired options.
+
+> **Reminder:** Ensure your AndroidManifest.xml declares `<uses-permission android:name="android.permission.VIBRATE" />` so custom vibration patterns can be used.
 
 ### listChannels()
 
@@ -111,6 +123,14 @@ Creates groups for all your channels to be sorted within, with given name, and r
 | IMPORTANCE_HIGH | ✅  | ✅  | ✅ | ✅ | ✅ |
 | IMPORTANCE_LOW | ❌  | ❌  | ✅ | ✅ | ❌ |
 | IMPORTANCE_MIN | ❌  | ❌  | ❌ | ✅ | ❌ |
+
+## Channel Visibility
+
+| visibility | description |
+| ---------- | ----------- |
+| VISIBILITY_PUBLIC | Show full notifications on the lock screen. |
+| VISIBILITY_PRIVATE | Hide sensitive content on the lock screen. |
+| VISIBILITY_SECRET | Hide all notifications from the lock screen. |
 
 Read more here: https://developer.android.com/training/notify-user/channels
 
