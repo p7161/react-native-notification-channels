@@ -180,7 +180,11 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
     val channelDescription = if (channelInfo.hasKey("channelDescription") && !channelInfo.isNull("channelDescription")) channelInfo.getString("channelDescription") else null
     //        boolean playSound = !channelInfo.hasKey("playSound") || channelInfo.getBoolean("playSound");
 //        String soundName = channelInfo.hasKey("soundName") ? channelInfo.getString("soundName") : "default";
-    val importance = if (channelInfo.hasKey("importance") && !channelInfo.isNull("importance")) channelInfo.getInt("importance") else 4
+    val importance = if (channelInfo.hasKey("importance") && !channelInfo.isNull("importance")) {
+      channelInfo.getInt("importance")
+    } else {
+      NotificationManager.IMPORTANCE_HIGH
+    }
     //        boolean vibrate = channelInfo.hasKey("vibrate") && channelInfo.getBoolean("vibrate");
 //        long[] vibratePattern = vibrate ? new long[] { 0, DEFAULT_VIBRATION } : null;
 //        Uri soundUri = playSound ? getSoundUri(soundName) : null;
@@ -220,7 +224,13 @@ class NotificationChannelsModule(private val reactContext: ReactApplicationConte
       promise.resolve(true)
       return
     }
-    notificationManager.createNotificationChannelGroup(NotificationChannelGroup(groupId, groupName))
+    val id = groupId?.trim()
+    val name = groupName?.trim()
+    if (id.isNullOrEmpty() || name.isNullOrEmpty()) {
+      promise.reject("E_GROUP_ARGS", "groupId and groupName are required")
+      return
+    }
+    notificationManager.createNotificationChannelGroup(NotificationChannelGroup(id, name))
     promise.resolve(true)
   }
 
