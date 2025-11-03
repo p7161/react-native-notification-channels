@@ -1,5 +1,6 @@
 package com.reactnativenotificationchannels
 
+import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.NotificationChannelGroup
@@ -7,12 +8,24 @@ import android.content.Context
 import android.os.Build
 import com.facebook.react.bridge.*
 
-class NotificationChannelsModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+class NotificationChannelsModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
   private val notificationManager: NotificationManager = reactContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
   override fun getName(): String {
       return "NotificationChannels"
+  }
+
+  override fun getConstants(): MutableMap<String, Any> {
+    val constants: MutableMap<String, Any> = HashMap()
+
+    val visibility: MutableMap<String, Int> = HashMap()
+    visibility["VISIBILITY_SECRET"] = Notification.VISIBILITY_SECRET
+    visibility["VISIBILITY_PRIVATE"] = Notification.VISIBILITY_PRIVATE
+    visibility["VISIBILITY_PUBLIC"] = Notification.VISIBILITY_PUBLIC
+    constants["CHANNEL_VISIBILITY"] = visibility
+
+    return constants
   }
 
   @ReactMethod
@@ -60,7 +73,35 @@ class NotificationChannelsModule(reactContext: ReactApplicationContext) : ReactC
     promise.resolve("Channel Deleted")
   }
 
-  private fun checkOrCreateChannel(channel_id: String?, channel_name: String?, channel_description: String?, importance: Int, groupId: String?): Boolean {
+  private fun toLongArray(array: ReadableArray?): LongArray? {
+    if (array == null) {
+      return null
+    }
+
+    val size = array.size()
+    if (size <= 0) {
+      return null
+    }
+
+    val pattern = LongArray(size)
+    for (i in 0 until size) {
+      val value = array.getDouble(i)
+      pattern[i] = if (value < 0) 0L else value.toLong()
+    }
+
+    return pattern
+  }
+
+  private fun checkOrCreateChannel(
+    channel_id: String?,
+    channel_name: String?,
+    channel_description: String?,
+    importance: Int,
+    groupId: String?,
+    lockscreenVisibility: Int?,
+    bypassDnd: Boolean?,
+    vibrationPattern: LongArray?
+  ): Boolean {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
       return false
     }
@@ -90,6 +131,16 @@ class NotificationChannelsModule(reactContext: ReactApplicationContext) : ReactC
       if (groupId != null) {
         channel.group = groupId
       }
+      if (lockscreenVisibility != null) {
+        channel.lockscreenVisibility = lockscreenVisibility
+      }
+      if (bypassDnd != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        channel.setBypassDnd(bypassDnd)
+      }
+      if (vibrationPattern != null) {
+        channel.enableVibration(true)
+        channel.vibrationPattern = vibrationPattern
+      }
       notificationManager.createNotificationChannel(channel)
       return true
     }
@@ -108,7 +159,33 @@ class NotificationChannelsModule(reactContext: ReactApplicationContext) : ReactC
 //        long[] vibratePattern = vibrate ? new long[] { 0, DEFAULT_VIBRATION } : null;
 //        Uri soundUri = playSound ? getSoundUri(soundName) : null;
     val groupId = if (channelInfo.hasKey("groupId")) channelInfo.getString("groupId") else null
-    promise.resolve(checkOrCreateChannel(channelId, channelName, channelDescription, importance, groupId))
+    val lockscreenVisibility = if (channelInfo.hasKey("lockscreenVisibility") && !channelInfo.isNull("lockscreenVisibility")) {
+      channelInfo.getInt("lockscreenVisibility")
+    } else {
+      null
+    }
+    val bypassDnd = if (channelInfo.hasKey("bypassDnd") && !channelInfo.isNull("bypassDnd")) {
+      channelInfo.getBoolean("bypassDnd")
+    } else {
+      null
+    }
+    val vibrationPattern = if (channelInfo.hasKey("vibrationPattern") && !channelInfo.isNull("vibrationPattern")) {
+      toLongArray(channelInfo.getArray("vibrationPattern"))
+    } else {
+      null
+    }
+    promise.resolve(
+      checkOrCreateChannel(
+        channelId,
+        channelName,
+        channelDescription,
+        importance,
+        groupId,
+        lockscreenVisibility,
+        bypassDnd,
+        vibrationPattern
+      )
+    )
   }
 
   @ReactMethod
